@@ -5,6 +5,7 @@
 * Under MIT License. See LICENSE file.
 */
 
+#include <node/node.h>
 #include <v8.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -43,6 +44,109 @@ Handle<Value> CloseIO(const Arguments& args) {
 	close(STDERR_FILENO);
 }
 
+class StreamPtr : public node::ObjectWrap
+{
+public:
+    explicit StreamPtr(FILE** fpp);
+    ~StreamPtr();
+
+    static Handle<Value> Open(const Arguments& args);
+    static Handle<Value> Close(const Arguments& args);
+    static Handle<Value> Redirect(const Arguments& args);
+
+    static void Initialize(Handle<Object> target);
+    static Handle<Value> New(const Arguments& args);
+
+private:
+    static Persistent<FunctionTemplate> constructor_template;
+
+    FILE** stream;
+};
+
+Persistent<FunctionTemplate> StreamPtr::constructor_template;
+
+StreamPtr::StreamPtr(FILE** fpp)
+    : stream(fpp)
+{
+}
+
+StreamPtr::~StreamPtr()
+{
+    fclose(*stream);
+}
+
+Handle<Value> StreamPtr::Open(const Arguments& args)
+{
+    HandleScope scope;
+
+    StreamPtr *fp = ObjectWrap::Unwrap<StreamPtr>(args.This());
+    char *new_file = *String::Utf8Value(args[0]->ToString());
+    *fp->stream = fopen(new_file, "w+"); //FIXME
+
+    // return if the creation of the new FILE* was successful;
+    return Boolean::New( *fp->stream != NULL );
+}
+
+Handle<Value> StreamPtr::Close(const Arguments& args)
+{
+    HandleScope handle_scope;
+
+    StreamPtr *fp = ObjectWrap::Unwrap<StreamPtr>(args.This());
+    assert( fp && "object had no InternalField" );
+    int ret = fclose(*fp->stream);
+
+    return Boolean::New(ret == 0);
+}
+
+Handle<Value> StreamPtr::Redirect(const Arguments& args)
+{
+    HandleScope scope;
+    if (Close(args)->ToBoolean()->Value())
+    {
+        return Open(args);
+    } else {
+        return Boolean::New(false);
+    }
+}
+
+void StreamPtr::Initialize(Handle<Object> target)
+{
+    HandleScope scope;
+
+    Local<FunctionTemplate> file_pointer = FunctionTemplate::New(StreamPtr::New);
+    constructor_template = Persistent<FunctionTemplate>::New(file_pointer);
+    constructor_template->InstanceTemplate()->SetInternalFieldCount(1);
+
+    NODE_SET_PROTOTYPE_METHOD(constructor_template, "open", StreamPtr::Open);
+    NODE_SET_PROTOTYPE_METHOD(constructor_template, "close", StreamPtr::Close);
+    NODE_SET_PROTOTYPE_METHOD(constructor_template, "sendTo", StreamPtr::Redirect);
+
+    // Although we could expose the prototype directly, I see no reason to, as it's not
+    // very useful for anything other than the intended purpose.
+    //target->Set(String::NewSymbol("StreamPtr"), constructor_template->GetFunction());
+
+    Handle<Object> stdin_obj = constructor_template->GetFunction()->NewInstance();
+    Handle<External> stdin_ptr = External::New( new StreamPtr( &stdin ) );
+    stdin_obj->SetInternalField(0, stdin_ptr);
+    target->Set(String::NewSymbol("stdin"), stdin_obj);
+
+    Handle<Object> stdout_obj = constructor_template->GetFunction()->NewInstance();
+    Handle<External> stdout_ptr = External::New( new StreamPtr( &stdout ) );
+    stdout_obj->SetInternalField(0, stdout_ptr);
+    target->Set(String::NewSymbol("stdout"), stdout_obj);
+
+    Handle<Object> stderr_obj = constructor_template->GetFunction()->NewInstance();
+    Handle<External> stderr_ptr = External::New( new StreamPtr( &stderr ) );
+    stderr_obj->SetInternalField(0, stderr_ptr);
+    target->Set(String::NewSymbol("stderr"), stderr_obj);
+}
+
+Handle<Value> StreamPtr::New(const Arguments& args)
+{
+    HandleScope scope;
+    return scope.Close(args.This());
+}
+
 // File-lock to make sure that only one instance of daemon is running.. also for storing PID
 /* lock ( filename )
 *** filename: a path to a lock-file.
@@ -71,4 +175,6 @@ extern "C" void init(Handle<Object> target) {
 	target->Set(String::New("start"), FunctionTemplate::New(Start)->GetFunction());
 	target->Set(String::New("lock"), FunctionTemplate::New(LockD)->GetFunction());
 	target->Set(String::New("closeIO"), FunctionTemplate::New(CloseIO)->GetFunction());
+
+        StreamPtr::Initialize(target);
 }
