@@ -16,10 +16,10 @@ function testPropertyExistance() {
 
 function testFunctionality() {
     assert.ok(daemon.stdout.close(), "stdout cannot be closed");
-    assert.ok(daemon.stdout.open("stdout1.txt"), "stdout cannot be opened");
+    assert.ok(daemon.stdout.open("stdout.txt"), "stdout cannot be opened");
     sys.print("moooo");
-    assert.ok(daemon.stdout.sendTo("stdout2.txt"), "stdout cannot be redirected");
-    sys.print("moooo two");
+    assert.ok(daemon.stderr.sendTo("stderr.txt"), "stderr cannot be redirected");
+    sys.debug("moooo two");
 }
 
 function main() {

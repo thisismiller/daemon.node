@@ -18,9 +18,21 @@ switch(args[2]) {
 		break;
 		
 	case "start":
-		dPID = daemon.start();
-		daemon.lock(config.lockFile);
-		daemon.closeIO();
+                dPID = daemon.init(
+                        {
+                          fork: false,
+                          lock: config.lockFile,
+                          stdin: "/dev/null",
+                          stdout: "lulz.txt",
+                          stderr: "/dev/null",
+                          umask: 0,
+                          chroot: null,
+                          chdir: ".",
+                        });
+                sys.print("moooooo");
+		//dPID = daemon.start();
+		//daemon.lock(config.lockFile);
+		//daemon.closeIO();
 		break;
 		
 	default:
