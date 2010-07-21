@@ -19,7 +19,7 @@ using namespace v8;
 // Go through special routines to become a daemon.
 // if successful, returns daemon's PID
 Handle<Value> Start(const Arguments& args) {
-	pid_t pid, sid;
+	pid_t pid;
 	
 	pid = fork();
 	if(pid > 0) exit(0);
@@ -28,8 +28,7 @@ Handle<Value> Start(const Arguments& args) {
 	// Can be changed after with process.umaks
 	umask(0);
 	
-	sid = setsid();
-	if(sid < 0) exit(1);
+	setsid();
 	
 	// Can be changed with process.chdir
 	chdir("/");
